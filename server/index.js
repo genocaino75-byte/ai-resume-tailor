@@ -12,11 +12,9 @@ app.use(express.json());
 
 // PostgreSQL connection
 const pool = new Pool({
-    user: 'postgres',
-    host: 'localhost',
-    database: 'resume_tailor',
-    password: process.env.DB_PASSWORD,
-    port: 5432,
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+});
 });
 
 // Anthropic client
