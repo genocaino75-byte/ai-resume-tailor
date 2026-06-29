@@ -56,8 +56,9 @@ ${jobDescription}`
 
         res.json({ tailoredResume });
     } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'Failed to tailor resume' });
+        console.error('Database error full:', error);
+        res.status(500).json({ error: error.message });
+    }
     }
 });
 
