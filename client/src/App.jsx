@@ -49,7 +49,21 @@ export default function App() {
   };
 
   return (
-    <div style={styles.container}>
+      <div style={styles.container}>
+      <style>{`
+        ::placeholder {
+          color: #a0aec0 !important;
+          opacity: 1 !important;
+        }
+        input::placeholder {
+          color: #a0aec0 !important;
+          opacity: 1 !important;
+        }
+        textarea::placeholder {
+          color: #a0aec0 !important;
+          opacity: 1 !important;
+        }
+      `}</style>
       {/* HEADER */}
       <div style={styles.header}>
         <h1 style={styles.title}>🤖 AI Resume Tailor</h1>
