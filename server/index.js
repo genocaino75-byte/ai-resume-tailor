@@ -16,6 +16,14 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 });
+// Test database connection on startup
+pool.query('SELECT NOW()', (err, res) => {
+    if (err) {
+        console.error('Database connection error:', err.message);
+    } else {
+        console.log('✅ Database connected successfully:', res.rows[0]);
+    }
+});
 
 // Anthropic client
 const anthropic = new Anthropic({
