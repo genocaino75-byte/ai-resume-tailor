@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 
-const API_URL = "http://localhost:5000";
+const API_URL = "https://ai-resume-tailor-api.onrender.com";
 
 export default function App() {
   const [resume, setResume] = useState("");
