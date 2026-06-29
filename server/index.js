@@ -15,7 +15,7 @@ const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
 });
-});
+
 // Test database connection on startup
 pool.query('SELECT NOW()', (err, res) => {
     if (err) {
@@ -61,12 +61,10 @@ ${jobDescription}`
         });
 
         const tailoredResume = message.content[0].text;
-
         res.json({ tailoredResume });
     } catch (error) {
-        console.error('Database error full:', error);
+        console.error('Tailor error:', error);
         res.status(500).json({ error: error.message });
-    }
     }
 });
 
