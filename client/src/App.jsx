@@ -12,6 +12,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const handleTailor = async () => {
     if (!resume || !jobDescription) {
@@ -49,7 +50,7 @@ export default function App() {
   };
 
   return (
-      <div style={styles.container}>
+    <div style={styles.container}>
       <style>{`
         ::placeholder {
           color: #a0aec0 !important;
@@ -64,6 +65,7 @@ export default function App() {
           opacity: 1 !important;
         }
       `}</style>
+
       {/* HEADER */}
       <div style={styles.header}>
         <h1 style={styles.title}>🤖 AI Resume Tailor</h1>
@@ -131,12 +133,24 @@ export default function App() {
                   value={tailoredResume}
                   onChange={(e) => setTailoredResume(e.target.value)}
                 />
-                <button
-                  style={styles.saveButton}
-                  onClick={handleSave}
-                >
-                  {saved ? "✅ Saved!" : "💾 Save Resume"}
-                </button>
+                <div style={styles.buttonRow}>
+                  <button
+                    style={styles.saveButton}
+                    onClick={handleSave}
+                  >
+                    {saved ? "✅ Saved!" : "💾 Save Resume"}
+                  </button>
+                  <button
+                    style={styles.copyButton}
+                    onClick={() => {
+                      navigator.clipboard.writeText(tailoredResume);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                  >
+                    {copied ? "✅ Copied!" : "📋 Copy"}
+                  </button>
+                </div>
               </>
             ) : (
               <div style={styles.placeholder}>
@@ -262,7 +276,22 @@ const styles = {
     fontSize: "0.9rem",
     fontWeight: "700",
     cursor: "pointer",
-    width: "100%",
+    flex: "1",
+  },
+  copyButton: {
+    background: "#7c5cfc",
+    color: "white",
+    border: "none",
+    borderRadius: "10px",
+    padding: "12px 24px",
+    fontSize: "0.9rem",
+    fontWeight: "700",
+    cursor: "pointer",
+    flex: "1",
+  },
+  buttonRow: {
+    display: "flex",
+    gap: "10px",
     marginTop: "12px",
   },
   placeholder: {
@@ -284,4 +313,3 @@ const styles = {
     margin: "0",
   },
 };
-
