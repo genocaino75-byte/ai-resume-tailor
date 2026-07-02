@@ -83,7 +83,7 @@ export default function App() {
       {/* HEADER */}
       <div style={styles.header}>
         <h1 style={styles.title}>🤖 AI Resume Tailor</h1>
-        <p style={styles.subtitle}>Powered by Claude AI</p>
+        <p style={styles.subtitle}>Powered by Claude AI  •  © {new Date().getFullYear()} Paul Cain</p>
       </div>
 
       {/* MAIN CONTENT */}
