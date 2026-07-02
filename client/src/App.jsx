@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 
-const API_URL = "https://ai-resume-tailor-api.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export default function App() {
   const [resume, setResume] = useState("");
@@ -13,6 +13,7 @@ export default function App() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const handleTailor = async () => {
     if (!resume || !jobDescription) {
@@ -49,21 +50,34 @@ export default function App() {
     }
   };
 
+  const handleDownload = async () => {
+    if (!tailoredResume) return;
+    setDownloading(true);
+    try {
+      const response = await axios.post(
+        `${API_URL}/api/generate-docx`,
+        { resumeText: tailoredResume, jobTitle, company },
+        { responseType: "blob" }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `${company || "tailored"}_resume.docx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      setError("Failed to download Word document!");
+    }
+    setDownloading(false);
+  };
+
   return (
     <div style={styles.container}>
       <style>{`
-        ::placeholder {
-          color: #a0aec0 !important;
-          opacity: 1 !important;
-        }
-        input::placeholder {
-          color: #a0aec0 !important;
-          opacity: 1 !important;
-        }
-        textarea::placeholder {
-          color: #a0aec0 !important;
-          opacity: 1 !important;
-        }
+        ::placeholder { color: #a0aec0 !important; opacity: 1 !important; }
+        input::placeholder { color: #a0aec0 !important; opacity: 1 !important; }
+        textarea::placeholder { color: #a0aec0 !important; opacity: 1 !important; }
       `}</style>
 
       {/* HEADER */}
@@ -134,11 +148,8 @@ export default function App() {
                   onChange={(e) => setTailoredResume(e.target.value)}
                 />
                 <div style={styles.buttonRow}>
-                  <button
-                    style={styles.saveButton}
-                    onClick={handleSave}
-                  >
-                    {saved ? "✅ Saved!" : "💾 Save Resume"}
+                  <button style={styles.saveButton} onClick={handleSave}>
+                    {saved ? "✅ Saved!" : "💾 Save"}
                   </button>
                   <button
                     style={styles.copyButton}
@@ -149,6 +160,13 @@ export default function App() {
                     }}
                   >
                     {copied ? "✅ Copied!" : "📋 Copy"}
+                  </button>
+                  <button
+                    style={downloading ? styles.downloadButtonDisabled : styles.downloadButton}
+                    onClick={handleDownload}
+                    disabled={downloading}
+                  >
+                    {downloading ? "⏳..." : "⬇️ Word Doc"}
                   </button>
                 </div>
               </>
@@ -267,13 +285,18 @@ const styles = {
     cursor: "not-allowed",
     width: "100%",
   },
+  buttonRow: {
+    display: "flex",
+    gap: "10px",
+    marginTop: "12px",
+  },
   saveButton: {
     background: "#00ff88",
     color: "#0a0c13",
     border: "none",
     borderRadius: "10px",
-    padding: "12px 24px",
-    fontSize: "0.9rem",
+    padding: "12px 16px",
+    fontSize: "0.85rem",
     fontWeight: "700",
     cursor: "pointer",
     flex: "1",
@@ -283,16 +306,33 @@ const styles = {
     color: "white",
     border: "none",
     borderRadius: "10px",
-    padding: "12px 24px",
-    fontSize: "0.9rem",
+    padding: "12px 16px",
+    fontSize: "0.85rem",
     fontWeight: "700",
     cursor: "pointer",
     flex: "1",
   },
-  buttonRow: {
-    display: "flex",
-    gap: "10px",
-    marginTop: "12px",
+  downloadButton: {
+    background: "#00d4ff",
+    color: "#0a0c13",
+    border: "none",
+    borderRadius: "10px",
+    padding: "12px 16px",
+    fontSize: "0.85rem",
+    fontWeight: "700",
+    cursor: "pointer",
+    flex: "1",
+  },
+  downloadButtonDisabled: {
+    background: "#2a2f4a",
+    color: "#6b7280",
+    border: "none",
+    borderRadius: "10px",
+    padding: "12px 16px",
+    fontSize: "0.85rem",
+    fontWeight: "700",
+    cursor: "not-allowed",
+    flex: "1",
   },
   placeholder: {
     height: "220px",
