@@ -98,6 +98,9 @@ export default function App() {
               value={resume}
               onChange={(e) => setResume(e.target.value)}
             />
+            <p style={styles.counter}>
+              📝 {resume.trim() === "" ? 0 : resume.trim().split(/\s+/).length} words  |  {resume.length} characters
+            </p>
           </div>
 
           <div style={styles.card}>
@@ -108,6 +111,9 @@ export default function App() {
               value={jobDescription}
               onChange={(e) => setJobDescription(e.target.value)}
             />
+            <p style={styles.counter}>
+              📝 {jobDescription.trim() === "" ? 0 : jobDescription.trim().split(/\s+/).length} words  |  {jobDescription.length} characters
+            </p>
           </div>
 
           <div style={styles.row}>
@@ -349,7 +355,13 @@ const styles = {
   },
   error: {
     color: "#ff6b6b",
-    fontSize: "0.85rem",
+   fontSize: "0.85rem",
     margin: "0",
+  },
+  counter: {
+    color: "#6b7280",
+    fontSize: "0.75rem",
+    margin: "6px 0 0",
+    textAlign: "right",
   },
 };
