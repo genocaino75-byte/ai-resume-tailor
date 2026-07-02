@@ -4,6 +4,8 @@ import axios from "axios";
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export default function App() {
+  const [downloading, setDownloading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [resume, setResume] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [jobTitle, setJobTitle] = useState("");
@@ -13,9 +15,9 @@ export default function App() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
-  const [downloading, setDownloading] = useState(false);
+  
 
-  const handleTailor = async () => {
+ const handleTailor = async () => {
     if (!resume || !jobDescription) {
       setError("Please enter both your resume and job description!");
       return;
@@ -23,16 +25,33 @@ export default function App() {
     setLoading(true);
     setError("");
     setSaved(false);
+    setProgress(0);
+
+    // Simulate progress
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(interval);
+          return 90;
+        }
+        return prev + 10;
+      });
+    }, 400);
+
     try {
       const response = await axios.post(`${API_URL}/api/tailor`, {
         resume,
         jobDescription,
       });
       setTailoredResume(response.data.tailoredResume);
+      setProgress(100);
     } catch (err) {
       setError("Failed to tailor resume. Check your server!");
     }
+
+    clearInterval(interval);
     setLoading(false);
+    setTimeout(() => setProgress(0), 1000);
   };
 
   const handleSave = async () => {
@@ -134,12 +153,28 @@ export default function App() {
           {error && <p style={styles.error}>{error}</p>}
 
           <button
+          
             style={loading ? styles.buttonDisabled : styles.button}
             onClick={handleTailor}
             disabled={loading}
           >
             {loading ? "⏳ Tailoring your resume..." : "✨ Tailor My Resume"}
           </button>
+
+          {loading && (
+            <div style={styles.progressContainer}>
+              <div style={styles.progressLabel}>
+                <span>Claude is analyzing your resume...</span>
+                <span>{progress}%</span>
+              </div>
+              <div style={styles.progressBar}>
+                <div style={{
+                  ...styles.progressFill,
+                  width: `${progress}%`,
+                }} />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* RIGHT COLUMN */}
@@ -363,5 +398,31 @@ const styles = {
     fontSize: "0.75rem",
     margin: "6px 0 0",
     textAlign: "right",
+  },
+  progressContainer: {
+    marginTop: "12px",
+    background: "#141828",
+    border: "1px solid #2a2f4a",
+    borderRadius: "10px",
+    padding: "14px 16px",
+  },
+  progressLabel: {
+    display: "flex",
+    justifyContent: "space-between",
+    color: "#a0aec0",
+    fontSize: "0.8rem",
+    marginBottom: "8px",
+  },
+  progressBar: {
+    background: "#2a2f4a",
+    borderRadius: "999px",
+    height: "8px",
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    background: "linear-gradient(90deg, #7c5cfc, #00d4ff)",
+    borderRadius: "999px",
+    transition: "width 0.4s ease",
   },
 };
