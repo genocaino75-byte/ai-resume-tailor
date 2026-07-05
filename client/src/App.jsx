@@ -351,6 +351,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
+    boxShadow: "0 10px 30px rgba(59,7,100,0.55)",
   },
   title: {
     fontSize: "1.8rem",
@@ -358,6 +359,7 @@ const styles = {
     fontFamily: theme.fonts.heading,
     color: theme.colors.white,
     margin: "0",
+    textShadow: "0 3px 10px rgba(0,0,0,0.4)",
   },
   subtitle: {
     color: theme.colors.white,
@@ -374,6 +376,7 @@ const styles = {
     fontSize: "0.9rem",
     fontWeight: "500",
     cursor: "pointer",
+    boxShadow: "0 4px 14px rgba(0,0,0,0.3)",
   },
   historyButtonActive: {
     background: theme.colors.accentYellow,
@@ -384,6 +387,7 @@ const styles = {
     fontSize: "0.9rem",
     fontWeight: "600",
     cursor: "pointer",
+    boxShadow: "0 8px 22px rgba(251,191,36,0.6)",
   },
   content: {
     display: "flex",
@@ -401,6 +405,7 @@ const styles = {
     border: `1px solid ${theme.colors.border}`,
     borderRadius: "16px",
     padding: "20px",
+    boxShadow: "0 10px 30px rgba(76,29,149,0.18)",
   },
   cardTitle: {
     fontSize: "1rem",
@@ -421,6 +426,7 @@ const styles = {
     resize: "vertical",
     fontFamily: theme.fonts.body,
     boxSizing: "border-box",
+    boxShadow: "inset 0 3px 8px rgba(0,0,0,0.1)",
   },
   counter: {
     color: theme.colors.grayText,
@@ -441,6 +447,7 @@ const styles = {
     padding: "10px 14px",
     fontSize: "0.9rem",
     fontFamily: theme.fonts.body,
+    boxShadow: "inset 0 3px 8px rgba(0,0,0,0.1)",
   },
   button: {
     background: theme.gradients.hero,
@@ -452,6 +459,7 @@ const styles = {
     fontWeight: "600",
     cursor: "pointer",
     width: "100%",
+    boxShadow: "0 12px 34px rgba(124,58,237,0.55)",
   },
   buttonDisabled: {
     background: theme.colors.border,
@@ -479,6 +487,7 @@ const styles = {
     fontWeight: "600",
     cursor: "pointer",
     flex: "1",
+    boxShadow: "0 8px 22px rgba(16,185,129,0.5)",
   },
   copyButton: {
     background: theme.colors.purpleMid,
@@ -490,6 +499,7 @@ const styles = {
     fontWeight: "600",
     cursor: "pointer",
     flex: "1",
+    boxShadow: "0 8px 22px rgba(124,58,237,0.5)",
   },
   downloadButton: {
     background: theme.colors.accentYellow,
@@ -501,6 +511,7 @@ const styles = {
     fontWeight: "600",
     cursor: "pointer",
     flex: "1",
+    boxShadow: "0 8px 22px rgba(251,191,36,0.55)",
   },
   downloadButtonDisabled: {
     background: theme.colors.border,
@@ -519,6 +530,7 @@ const styles = {
     border: `1px solid ${theme.colors.border}`,
     borderRadius: theme.radius,
     padding: "14px 16px",
+    boxShadow: "0 8px 22px rgba(76,29,149,0.15)",
   },
   progressLabel: {
     display: "flex",
@@ -532,6 +544,7 @@ const styles = {
     borderRadius: "999px",
     height: "8px",
     overflow: "hidden",
+    boxShadow: "inset 0 2px 5px rgba(0,0,0,0.25)",
   },
   progressFill: {
     height: "100%",
@@ -561,6 +574,7 @@ const styles = {
     background: theme.gradients.hero,
     padding: "16px 40px",
     textAlign: "center",
+    boxShadow: "0 -10px 30px rgba(59,7,100,0.4)",
   },
   footerText: {
     color: theme.colors.white,
@@ -598,8 +612,9 @@ const styles = {
     borderRadius: "16px",
     padding: "20px",
     marginBottom: "16px",
-    transition: "border-color 0.2s ease",
+    transition: "border-color 0.2s ease, box-shadow 0.2s ease",
     cursor: "pointer",
+    boxShadow: "0 10px 30px rgba(76,29,149,0.18)",
   },
   historyCardHeader: {
     display: "flex",
@@ -643,6 +658,7 @@ const styles = {
     fontSize: "0.82rem",
     fontWeight: "600",
     cursor: "pointer",
+    boxShadow: "0 6px 18px rgba(124,58,237,0.45)",
   },
   historyExpanded: {
     marginTop: "16px",
@@ -671,5 +687,6 @@ const styles = {
     resize: "vertical",
     fontFamily: theme.fonts.body,
     boxSizing: "border-box",
+    boxShadow: "inset 0 3px 8px rgba(0,0,0,0.1)",
   },
 };
