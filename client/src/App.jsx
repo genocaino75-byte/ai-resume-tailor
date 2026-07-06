@@ -131,7 +131,25 @@ export default function App() {
       {/* HEADER */}
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>🤖 AI Resume Tailor</h1>
+          <h1 style={styles.title}>
+  🤖 AI Resume <span style={{ position: "relative", display: "inline-block" }}>
+    Tailor
+    <svg
+      width="90"
+      height="14"
+      viewBox="0 0 90 14"
+      style={{ position: "absolute", left: 0, bottom: "-14px" }}
+    >
+      <path
+        d="M0 8 Q 11 0, 22 8 T 44 8 T 66 8 T 88 8"
+        stroke={theme.colors.accentYellow}
+        strokeWidth="3"
+        fill="none"
+        strokeLinecap="round"
+      />
+    </svg>
+  </span>
+</h1>
           <p style={styles.subtitle}>Powered by Claude AI</p>
         </div>
         <button
@@ -279,7 +297,10 @@ export default function App() {
             <div
               key={item.id}
               className="history-card"
-              style={styles.historyCard}
+              style={{
+  ...styles.historyCard,
+  transform: `translateY(${history.indexOf(item) % 2 === 0 ? "0px" : "12px"})`,
+}}
             >
               <div style={styles.historyCardHeader}>
                 <div>
