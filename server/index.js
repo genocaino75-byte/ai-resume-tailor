@@ -14,6 +14,15 @@ dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
+const rateLimit = require("express-rate-limit");
+
+const tailorLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: 10, // limit each IP to 10 requests per hour
+  message: { error: "Too many requests. Please try again in an hour." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // PostgreSQL connection
 const pool = new Pool({
@@ -41,7 +50,7 @@ app.get('/', (req, res) => {
 });
 
 // Tailor resume route
-app.post('/api/tailor', async (req, res) => {
+app.post("/api/tailor", tailorLimiter, async (req, res) => {
   const { resume, jobDescription } = req.body;
   try {
     const message = await anthropic.messages.create({
