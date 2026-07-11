@@ -42,12 +42,18 @@ export default function App() {
     }, 400);
 
     try {
-      const response = await axios.post(`${API_URL}/api/tailor`, { resume, jobDescription });
-      setTailoredResume(response.data.tailoredResume);
-      setProgress(100);
-    } catch (err) {
-      setError("Failed to tailor resume. Check your server!");
-    }
+  const response = await axios.post(`${API_URL}/api/tailor`, { resume, jobDescription });
+  setTailoredResume(response.data.tailoredResume);
+  setProgress(100);
+} catch (err) {
+  if (err.response?.status === 429) {
+    setError("You've hit the hourly limit for tailoring requests. Please try again in a bit!");
+  } else if (err.response?.status === 529 || err.response?.status === 503) {
+    setError("Our AI service is temporarily busy. Please try again in a few minutes.");
+  } else {
+    setError("Something went wrong tailoring your resume. Please try again shortly.");
+  }
+}
 
     clearInterval(interval);
     setLoading(false);

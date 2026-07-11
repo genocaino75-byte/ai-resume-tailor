@@ -232,6 +232,17 @@ app.post('/api/resumes', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+// DELETE a saved resume
+app.delete("/api/resumes/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query("DELETE FROM resumes WHERE id = $1", [id]);
+    res.status(200).json({ message: "Deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete resume" });
+  }
+});
 
 // Get all resumes route
 app.get('/api/resumes', async (req, res) => {
