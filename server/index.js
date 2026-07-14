@@ -45,6 +45,22 @@ pool.query('SELECT NOW()', (err, res) => {
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+// Middleware to verify JWT and identify the logged-in user
+function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
+
+  const token = authHeader.split(" ")[1];
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.userId = decoded.userId;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: "Invalid or expired session." });
+  }
+}
 
 // Test route
 app.get('/', (req, res) => {
@@ -218,42 +234,44 @@ app.post('/api/generate-docx', async (req, res) => {
   }
 });
 
-// Save resume route
-app.post('/api/resumes', async (req, res) => {
+// Save resume route - now tied to the logged-in user
+app.post('/api/resumes', requireAuth, async (req, res) => {
   const { original, tailored, jobTitle, company } = req.body;
-  console.log('Save request received:', { jobTitle, company });
   try {
     const result = await pool.query(
-      'INSERT INTO resumes (original, tailored, job_title, company) VALUES ($1, $2, $3, $4) RETURNING *',
-      [original, tailored, jobTitle, company]
+      'INSERT INTO resumes (original, tailored, job_title, company, user_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [original, tailored, jobTitle, company, req.userId]
     );
-    console.log('Saved successfully:', result.rows[0]);
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Database error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
-// DELETE a saved resume
-app.delete("/api/resumes/:id", async (req, res) => {
-  const { id } = req.params;
-  try {
-    await pool.query("DELETE FROM resumes WHERE id = $1", [id]);
-    res.status(200).json({ message: "Deleted successfully" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to delete resume" });
-  }
-});
 
-// Get all resumes route
-app.get('/api/resumes', async (req, res) => {
+// Get all resumes route - now only returns the logged-in user's own resumes
+app.get('/api/resumes', requireAuth, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM resumes ORDER BY created_at DESC');
+    const result = await pool.query(
+      'SELECT * FROM resumes WHERE user_id = $1 ORDER BY created_at DESC',
+      [req.userId]
+    );
     res.json(result.rows);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Failed to fetch resumes' });
+  }
+});
+
+// DELETE a saved resume - now verifies it belongs to the logged-in user
+app.delete("/api/resumes/:id", requireAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query("DELETE FROM resumes WHERE id = $1 AND user_id = $2", [id, req.userId]);
+    res.status(200).json({ message: "Deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete resume" });
   }
 });
 // SIGN UP - creates a real account
