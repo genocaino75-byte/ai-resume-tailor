@@ -274,6 +274,18 @@ app.delete("/api/resumes/:id", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Failed to delete resume" });
   }
 });
+// DELETE ACCOUNT - permanently removes the user and all their data
+app.delete("/api/auth/account", requireAuth, async (req, res) => {
+  try {
+    // Thanks to ON DELETE CASCADE on resumes.user_id, deleting the user
+    // row automatically deletes all their saved resumes too.
+    await pool.query("DELETE FROM users WHERE id = $1", [req.userId]);
+    res.status(200).json({ message: "Account deleted successfully." });
+  } catch (err) {
+    console.error("Account deletion error:", err);
+    res.status(500).json({ error: "Failed to delete account." });
+  }
+});
 // SIGN UP - creates a real account
 app.post("/api/auth/signup", async (req, res) => {
   const { email, password } = req.body;
