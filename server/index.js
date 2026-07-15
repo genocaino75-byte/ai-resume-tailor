@@ -1,4 +1,7 @@
 const bcrypt = require("bcrypt");
+const crypto = require("crypto");
+const { Resend } = require("resend");
+const resend = new Resend(process.env.RESEND_API_KEY);
 const jwt = require("jsonwebtoken");
 const express = require('express');
 const cors = require('cors');
@@ -403,6 +406,89 @@ app.post("/api/auth/login", async (req, res) => {
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ error: "Failed to log in." });
+  }
+});
+// REQUEST PASSWORD RESET - sends an email with a reset link
+app.post("/api/auth/forgot-password", async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "Email is required." });
+  }
+
+  try {
+    const userResult = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+    const user = userResult.rows[0];
+
+    // Always return success, even if the email isn't registered.
+    // This prevents attackers from discovering which emails have accounts.
+    if (!user) {
+      return res.json({ message: "If an account exists for that email, a reset link has been sent." });
+    }
+
+    // Generate a secure random token that expires in 1 hour
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await pool.query(
+      "INSERT INTO password_resets (user_id, token, expires_at) VALUES ($1, $2, $3)",
+      [user.id, token, expiresAt]
+    );
+
+    const resetLink = `https://genocaino75-byte.github.io/resume-tailor-mobile/reset-password.html?token=${token}`;
+
+    await resend.emails.send({
+      from: "onboarding@resend.dev",
+      to: email,
+      subject: "Reset your Resume Tailor password",
+      html: `
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+          <h2 style="color: #3B0764;">Reset your password</h2>
+          <p style="color: #444;">We received a request to reset your Resume Tailor password. Click the button below to choose a new one. This link expires in 1 hour.</p>
+          <a href="${resetLink}" style="display: inline-block; background: #7C3AED; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; margin: 16px 0;">Reset Password</a>
+          <p style="color: #888; font-size: 13px;">If you didn't request this, you can safely ignore this email — your password won't change.</p>
+        </div>
+      `,
+    });
+
+    res.json({ message: "If an account exists for that email, a reset link has been sent." });
+  } catch (err) {
+    console.error("Forgot password error:", err);
+    res.status(500).json({ error: "Failed to process request." });
+  }
+});
+
+// RESET PASSWORD - verifies the token and updates the password
+app.post("/api/auth/reset-password", async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: "Token and new password are required." });
+  }
+
+  if (newPassword.length < 10 || (newPassword.match(/[0-9]/g) || []).length < 2) {
+    return res.status(400).json({ error: "Password must be at least 10 characters and contain at least 2 numbers." });
+  }
+
+  try {
+    const resetResult = await pool.query(
+      "SELECT * FROM password_resets WHERE token = $1 AND expires_at > NOW()",
+      [token]
+    );
+    const resetRecord = resetResult.rows[0];
+
+    if (!resetRecord) {
+      return res.status(400).json({ error: "This reset link is invalid or has expired." });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, resetRecord.user_id]);
+
+    // Delete the used token so it can't be reused
+    await pool.query("DELETE FROM password_resets WHERE id = $1", [resetRecord.id]);
+
+    res.json({ message: "Password updated successfully." });
+  } catch (err) {
+    console.error("Reset password error:", err);
+    res.status(500).json({ error: "Failed to reset password." });
   }
 });
 
