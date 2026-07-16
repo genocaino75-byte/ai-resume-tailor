@@ -1,4 +1,6 @@
 const bcrypt = require("bcrypt");
+const { OAuth2Client } = require("google-auth-library");
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const express = require('express');
@@ -489,6 +491,48 @@ app.post("/api/auth/reset-password", async (req, res) => {
   } catch (err) {
     console.error("Reset password error:", err);
     res.status(500).json({ error: "Failed to reset password." });
+  }
+});
+// GOOGLE SIGN-IN - verifies Google's ID token and creates/logs in the user
+app.post("/api/auth/google", async (req, res) => {
+  const { idToken } = req.body;
+  if (!idToken) {
+    return res.status(400).json({ error: "Google ID token is required." });
+  }
+
+  try {
+    // Verify the token really came from Google and is meant for our app
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    const email = payload.email;
+
+    if (!email) {
+      return res.status(400).json({ error: "Could not retrieve email from Google account." });
+    }
+
+    // Find existing user, or create one for this Google account
+    let userResult = await pool.query("SELECT id, email FROM users WHERE email = $1", [email]);
+    let user = userResult.rows[0];
+
+    if (!user) {
+      // Google-authenticated users don't have a password of their own.
+      // Store a random unusable hash so the column constraint is satisfied.
+      const randomHash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
+      const insertResult = await pool.query(
+        "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email",
+        [email, randomHash]
+      );
+      user = insertResult.rows[0];
+    }
+
+    const token = jwt.sign({ userId: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "30d" });
+    res.json({ token, user: { id: user.id, email: user.email } });
+  } catch (err) {
+    console.error("Google sign-in error:", err);
+    res.status(401).json({ error: "Google sign-in failed. Please try again." });
   }
 });
 
