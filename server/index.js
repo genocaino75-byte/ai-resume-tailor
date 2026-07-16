@@ -1,6 +1,4 @@
 const bcrypt = require("bcrypt");
-const { OAuth2Client } = require("google-auth-library");
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const express = require('express');
