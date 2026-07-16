@@ -17,6 +17,8 @@ const {
 dotenv.config();
 const { Resend } = require("resend");
 const resend = new Resend(process.env.RESEND_API_KEY);
+const { OAuth2Client } = require("google-auth-library");
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const app = express();
 app.use(cors());
