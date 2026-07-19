@@ -81,14 +81,11 @@ app.post("/api/tailor", requireAuth, tailorLimiter, async (req, res) => {
       "SELECT free_tailors_used, has_lifetime FROM users WHERE id = $1",
       [req.userId]
     );
-
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: "User not found" });
     }
-
     const { free_tailors_used, has_lifetime } = userResult.rows[0];
     const FREE_LIMIT = 2;
-
     // Trial users who've hit the limit get a paywall signal, not a tailor
     if (!has_lifetime && free_tailors_used >= FREE_LIMIT) {
       return res.status(402).json({
@@ -96,24 +93,24 @@ app.post("/api/tailor", requireAuth, tailorLimiter, async (req, res) => {
         error: "Free trial limit reached. Upgrade to continue tailoring.",
       });
     }
-
-    // Do the actual tailoring
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 2048,
       messages: [{
         role: 'user',
         content: `You are an expert resume writer. Tailor the following resume to match the job description provided.
+
 Keep the same format but adjust the language, keywords, and emphasis to better match the job requirements.
 Return ONLY the tailored resume text, no other commentary.
+
 RESUME:
 ${resume}
+
 JOB DESCRIPTION:
 ${jobDescription}`
       }]
     });
     const tailoredResume = message.content[0].text;
-
     // Count the run ONLY after a successful tailor, and only for non-lifetime users
     if (!has_lifetime) {
       await pool.query(
@@ -121,27 +118,6 @@ ${jobDescription}`
         [req.userId]
       );
     }
-
-    res.json({ tailoredResume });
-  } catch (error) {
-    console.error('Tailor error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-        role: 'user',
-        content: `You are an expert resume writer. Tailor the following resume to match the job description provided.
-
-Keep the same format but adjust the language, keywords, and emphasis to better match the job requirements.
-Return ONLY the tailored resume text, no other commentary.
-
-RESUME:
-${resume}
-
-JOB DESCRIPTION:
-${jobDescription}`
-      }]
-    });
-    const tailoredResume = message.content[0].text;
     res.json({ tailoredResume });
   } catch (error) {
     console.error('Tailor error:', error);
