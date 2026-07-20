@@ -463,7 +463,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     const resetLink = `https://genocaino75-byte.github.io/resume-tailor-mobile/reset-password.html?token=${token}`;
 
     await resend.emails.send({
-      from: "onboarding@resend.dev",
+      from: "Resume Tailored to JD <noreply@cainbuilds.com>",
       to: email,
       subject: "Reset your Resume Tailor password",
       html: `
