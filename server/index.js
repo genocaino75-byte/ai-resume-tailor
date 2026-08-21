@@ -132,69 +132,6 @@ app.post('/api/generate-docx', async (req, res) => {
   const NAVY = "1F3864";
   const DARK_TEXT = "1A1A1A";
   const LIGHT_BLUE = "D6E4F0";
-  // Generate PDF route - mirrors the docx formatting logic
-app.post('/api/generate-pdf', async (req, res) => {
-  const { resumeText, jobTitle, company } = req.body;
-  const PDFDocument = require('pdfkit');
-
-  const NAVY = "#1F3864";
-  const DARK_TEXT = "#1A1A1A";
-
-  const lines = resumeText.split('\n').map(l => l.trim()).filter(l => l);
-  const sectionKeywords = ['SUMMARY', 'EXPERIENCE', 'EDUCATION', 'SKILLS', 'CERTIFICATIONS', 'TECHNOLOGIES', 'COMPETENCIES', 'TRAINING', 'PROJECTS'];
-
-  function isSection(line) {
-    return sectionKeywords.some(k => line.toUpperCase().includes(k));
-  }
-  function isBullet(line) {
-    return line.startsWith('•') || line.startsWith('-') || line.startsWith('*');
-  }
-  function cleanBullet(line) {
-    return line.replace(/^[•\-\*]\s*/, '').trim();
-  }
-
-  try {
-    const doc = new PDFDocument({ size: 'LETTER', margins: { top: 50, bottom: 50, left: 55, right: 55 } });
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename=tailored_resume.pdf');
-    doc.pipe(res);
-
-    // Header
-    doc.font('Helvetica-Bold').fontSize(24).fillColor(NAVY)
-      .text("PAUL CAIN", { align: 'center' });
-    doc.font('Helvetica').fontSize(11).fillColor("#444444")
-      .text(jobTitle ? `Tailored for: ${jobTitle}${company ? ' at ' + company : ''}` : "IT Operations & Security Manager  |  Active Secret Clearance", { align: 'center' });
-    doc.fontSize(9).fillColor("#555555")
-      .text("Clarksville, TN  •  (931) 206-1989  •  pcaino3@icloud.com  •  linkedin.com/in/paul-cain-00b28133", { align: 'center' });
-    doc.moveDown(1);
-
-    // Body content
-    lines.forEach((line) => {
-      if (isSection(line)) {
-        doc.moveDown(0.5);
-        doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text(line.toUpperCase());
-        doc.moveTo(doc.x, doc.y + 2).lineTo(doc.page.width - 55, doc.y + 2).strokeColor(NAVY).lineWidth(1).stroke();
-        doc.moveDown(0.3);
-      } else if (isBullet(line)) {
-        doc.font('Helvetica').fontSize(10).fillColor(DARK_TEXT)
-          .text(`•  ${cleanBullet(line)}`, { indent: 15 });
-      } else if (line.match(/^\d{4}/)) {
-        doc.moveDown(0.2);
-        doc.font('Helvetica-Bold').fontSize(10).fillColor(NAVY).text(line);
-      } else if (line.includes('|') && !isSection(line)) {
-        doc.font('Helvetica-Oblique').fontSize(10).fillColor("#555555").text(line);
-      } else {
-        doc.font('Helvetica').fontSize(10).fillColor(DARK_TEXT).text(line);
-      }
-    });
-
-    doc.end();
-  } catch (err) {
-    console.error('PDF generation error:', err);
-    res.status(500).json({ error: 'Failed to generate PDF' });
-  }
-});
 
   // Parse resume text into sections
   const lines = resumeText.split('\n').map(l => l.trim()).filter(l => l);
@@ -323,6 +260,70 @@ app.post('/api/generate-pdf', async (req, res) => {
   } catch (err) {
     console.error('DOCX generation error:', err);
     res.status(500).json({ error: 'Failed to generate Word document' });
+  }
+});
+
+// Generate PDF route - mirrors the docx formatting logic
+app.post('/api/generate-pdf', async (req, res) => {
+  const { resumeText, jobTitle, company } = req.body;
+  const PDFDocument = require('pdfkit');
+
+  const NAVY = "#1F3864";
+  const DARK_TEXT = "#1A1A1A";
+
+  const lines = resumeText.split('\n').map(l => l.trim()).filter(l => l);
+  const sectionKeywords = ['SUMMARY', 'EXPERIENCE', 'EDUCATION', 'SKILLS', 'CERTIFICATIONS', 'TECHNOLOGIES', 'COMPETENCIES', 'TRAINING', 'PROJECTS'];
+
+  function isSection(line) {
+    return sectionKeywords.some(k => line.toUpperCase().includes(k));
+  }
+  function isBullet(line) {
+    return line.startsWith('•') || line.startsWith('-') || line.startsWith('*');
+  }
+  function cleanBullet(line) {
+    return line.replace(/^[•\-\*]\s*/, '').trim();
+  }
+
+  try {
+    const doc = new PDFDocument({ size: 'LETTER', margins: { top: 50, bottom: 50, left: 55, right: 55 } });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=tailored_resume.pdf');
+    doc.pipe(res);
+
+    // Header
+    doc.font('Helvetica-Bold').fontSize(24).fillColor(NAVY)
+      .text("PAUL CAIN", { align: 'center' });
+    doc.font('Helvetica').fontSize(11).fillColor("#444444")
+      .text(jobTitle ? `Tailored for: ${jobTitle}${company ? ' at ' + company : ''}` : "IT Operations & Security Manager  |  Active Secret Clearance", { align: 'center' });
+    doc.fontSize(9).fillColor("#555555")
+      .text("Clarksville, TN  •  (931) 206-1989  •  pcaino3@icloud.com  •  linkedin.com/in/paul-cain-00b28133", { align: 'center' });
+    doc.moveDown(1);
+
+    // Body content
+    lines.forEach((line) => {
+      if (isSection(line)) {
+        doc.moveDown(0.5);
+        doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text(line.toUpperCase());
+        doc.moveTo(doc.x, doc.y + 2).lineTo(doc.page.width - 55, doc.y + 2).strokeColor(NAVY).lineWidth(1).stroke();
+        doc.moveDown(0.3);
+      } else if (isBullet(line)) {
+        doc.font('Helvetica').fontSize(10).fillColor(DARK_TEXT)
+          .text(`•  ${cleanBullet(line)}`, { indent: 15 });
+      } else if (line.match(/^\d{4}/)) {
+        doc.moveDown(0.2);
+        doc.font('Helvetica-Bold').fontSize(10).fillColor(NAVY).text(line);
+      } else if (line.includes('|') && !isSection(line)) {
+        doc.font('Helvetica-Oblique').fontSize(10).fillColor("#555555").text(line);
+      } else {
+        doc.font('Helvetica').fontSize(10).fillColor(DARK_TEXT).text(line);
+      }
+    });
+
+    doc.end();
+  } catch (err) {
+    console.error('PDF generation error:', err);
+    res.status(500).json({ error: 'Failed to generate PDF' });
   }
 });
 
