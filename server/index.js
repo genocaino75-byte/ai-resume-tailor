@@ -125,6 +125,58 @@ ${jobDescription}`
   }
 });
 
+// CONFIRM PURCHASE - records a Google Play purchase and grants lifetime access
+app.post("/api/billing/confirm", requireAuth, async (req, res) => {
+  const { purchaseToken, productId } = req.body;
+
+  if (!purchaseToken || !productId) {
+    return res.status(400).json({ error: "Missing purchase information." });
+  }
+
+  // Only the lifetime product grants lifetime access
+  if (productId !== "lifetime_access") {
+    return res.status(400).json({ error: "Unrecognized product." });
+  }
+
+  try {
+    // Has this exact purchase token already been recorded?
+    // The UNIQUE constraint on purchase_token is the source of truth,
+    // but we check first to give a clean response.
+    const existing = await pool.query(
+      "SELECT id, user_id FROM purchases WHERE purchase_token = $1",
+      [purchaseToken]
+    );
+
+    if (existing.rows.length > 0) {
+      // Token already used. If it belongs to THIS user, treat as success
+      // (e.g. a Restore Purchase re-submitting). If another user, reject.
+      if (existing.rows[0].user_id === req.userId) {
+        await pool.query(
+          "UPDATE users SET has_lifetime = true WHERE id = $1",
+          [req.userId]
+        );
+        return res.json({ success: true, hasLifetime: true, restored: true });
+      }
+      return res.status(409).json({ error: "This purchase is already registered to another account." });
+    }
+
+    // Record the purchase and grant lifetime access.
+    await pool.query(
+      "INSERT INTO purchases (user_id, product_id, purchase_token) VALUES ($1, $2, $3)",
+      [req.userId, productId, purchaseToken]
+    );
+    await pool.query(
+      "UPDATE users SET has_lifetime = true WHERE id = $1",
+      [req.userId]
+    );
+
+    res.json({ success: true, hasLifetime: true });
+  } catch (err) {
+    console.error("Billing confirm error:", err);
+    res.status(500).json({ error: "Failed to confirm purchase." });
+  }
+});
+
 // Generate Word Doc route
 app.post('/api/generate-docx', async (req, res) => {
   const { resumeText, jobTitle, company } = req.body;
