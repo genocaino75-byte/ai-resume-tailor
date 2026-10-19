@@ -98,10 +98,19 @@ app.post("/api/tailor", requireAuth, tailorLimiter, async (req, res) => {
       max_tokens: 2048,
       messages: [{
         role: 'user',
-        content: `You are an expert resume writer. Tailor the following resume to match the job description provided.
+        content: `You are an expert resume writer. Rewrite and tailor the candidate's resume to match the job description, staying truthful to the candidate's real experience, employers, and dates.
 
-Keep the same format but adjust the language, keywords, and emphasis to better match the job requirements.
-Return ONLY the tailored resume text, no other commentary.
+Output PLAIN TEXT only — no Markdown, no ** symbols, no # symbols, no commentary. Format it EXACTLY like this:
+- Line 1: the candidate's full name, exactly as it appears in their resume.
+- Line 2: the candidate's contact details on one line (location, phone, email, LinkedIn), separated by "  •  ".
+- Line 3: the candidate's professional title / headline.
+- Then the body, using these ALL-CAPS section headings where they apply: SUMMARY, CORE STRENGTHS, PROFESSIONAL EXPERIENCE, EDUCATION, CERTIFICATIONS.
+- Under PROFESSIONAL EXPERIENCE, begin each role with ONE line formatted "Job Title — Company — City, ST — Start Date to End Date", then list achievements beneath it.
+- Every bullet point MUST begin with "• " (a bullet character followed by a space). Do not put whole bullets in capitals and do not bold them.
+
+Never replace the candidate's real name or contact information with anyone else's. Adjust only the language, keywords, and emphasis to match the job.
+
+Return ONLY the tailored resume text.
 
 RESUME:
 ${resume}
@@ -228,27 +237,38 @@ app.post('/api/generate-docx', async (req, res) => {
   // Build document children
   const children = [];
 
-  // Header
-  children.push(
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 0, after: 40 },
-      children: [new TextRun({ text: "PAUL CAIN", bold: true, size: 48, font: "Arial", color: NAVY })]
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 0, after: 40 },
-      children: [new TextRun({ text: jobTitle ? `Tailored for: ${jobTitle}${company ? ' at ' + company : ''}` : "IT Operations & Security Manager  |  Active Secret Clearance", size: 20, font: "Arial", color: "444444" })]
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 0, after: 120 },
-      children: [new TextRun({ text: "Clarksville, TN  •  (931) 206-1989  •  pcaino3@icloud.com  •  linkedin.com/in/paul-cain-00b28133", size: 18, font: "Arial", color: "555555" })]
-    })
-  );
+  // Header — use the candidate's OWN name/contact from the top of the resume,
+  // never a hardcoded identity. The tailored text begins with name, contact, title.
+  function isHeaderLine(line) {
+    return line && !isSection(line) && !isBullet(line) && line.length < 120 && !line.trim().endsWith('.');
+  }
 
-  // Parse and add content
-  let i = 0;
+  const candidateName = lines.length ? lines[0] : "";
+  const subtitleLines = [];
+  let bodyStart = 0;
+  if (candidateName && isHeaderLine(candidateName)) {
+    bodyStart = 1;
+    while (bodyStart < lines.length && subtitleLines.length < 2 && isHeaderLine(lines[bodyStart])) {
+      subtitleLines.push(lines[bodyStart]);
+      bodyStart++;
+    }
+  }
+
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 0, after: subtitleLines.length ? 40 : 120 },
+    children: [new TextRun({ text: (candidateName || "Your Name").toUpperCase(), bold: true, size: 44, font: "Arial", color: NAVY })]
+  }));
+  subtitleLines.forEach((sl, idx) => {
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 0, after: idx === subtitleLines.length - 1 ? 120 : 40 },
+      children: [new TextRun({ text: sl, size: idx === 0 ? 20 : 18, font: "Arial", color: "555555" })]
+    }));
+  });
+
+  // Parse and add content (skipping the header lines already rendered)
+  let i = bodyStart;
   while (i < lines.length) {
     const line = lines[i];
 
@@ -256,29 +276,15 @@ app.post('/api/generate-docx', async (req, res) => {
       children.push(sectionHeader(line));
     } else if (isBullet(line)) {
       children.push(bullet(cleanBullet(line)));
-    } else if (line.match(/^\d{4}/)) {
-      // Date line - treat as job header
+    } else if (line.match(/^\d{4}/) || /\s[—–]\s/.test(line)) {
+      // Role header: starts with a year, or uses em/en-dash separators
       children.push(new Paragraph({
         spacing: { before: 100, after: 20 },
-        children: [new TextRun({ text: line, bold: true, size: 18, font: "Arial", color: NAVY })]
+        children: [new TextRun({ text: line, bold: true, size: 20, font: "Arial", color: NAVY })]
       }));
-    } else if (line.includes('|') && !isSection(line)) {
-      // Company line
-      children.push(new Paragraph({
-        spacing: { before: 0, after: 35 },
-        children: [new TextRun({ text: line, italics: true, size: 18, font: "Arial", color: "555555" })]
-      }));
-    } else if (line.length > 0) {
-      // Check if it looks like a job title (short, no period)
-      if (line.length < 60 && !line.includes('.') && i + 1 < lines.length) {
-        children.push(new Paragraph({
-          spacing: { before: 100, after: 20 },
-          tabStops: [{ type: TabStopType.RIGHT, position: 9360 }],
-          children: [new TextRun({ text: line, bold: true, size: 20, font: "Arial", color: NAVY })]
-        }));
-      } else {
-        children.push(normalPara(line));
-      }
+    } else {
+      // Everything else is normal body text — never auto-bold short lines.
+      children.push(normalPara(line));
     }
     i++;
   }
@@ -343,17 +349,31 @@ app.post('/api/generate-pdf', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename=tailored_resume.pdf');
     doc.pipe(res);
 
-    // Header
-    doc.font('Helvetica-Bold').fontSize(24).fillColor(NAVY)
-      .text("PAUL CAIN", { align: 'center' });
-    doc.font('Helvetica').fontSize(11).fillColor("#444444")
-      .text(jobTitle ? `Tailored for: ${jobTitle}${company ? ' at ' + company : ''}` : "IT Operations & Security Manager  |  Active Secret Clearance", { align: 'center' });
-    doc.fontSize(9).fillColor("#555555")
-      .text("Clarksville, TN  •  (931) 206-1989  •  pcaino3@icloud.com  •  linkedin.com/in/paul-cain-00b28133", { align: 'center' });
+    // Header — use the candidate's OWN name/contact from the top of the resume.
+    function isHeaderLine(line) {
+      return line && !isSection(line) && !isBullet(line) && line.length < 120 && !line.trim().endsWith('.');
+    }
+    const candidateName = lines.length ? lines[0] : "";
+    const subtitleLines = [];
+    let bodyStart = 0;
+    if (candidateName && isHeaderLine(candidateName)) {
+      bodyStart = 1;
+      while (bodyStart < lines.length && subtitleLines.length < 2 && isHeaderLine(lines[bodyStart])) {
+        subtitleLines.push(lines[bodyStart]);
+        bodyStart++;
+      }
+    }
+
+    doc.font('Helvetica-Bold').fontSize(22).fillColor(NAVY)
+      .text((candidateName || "Your Name").toUpperCase(), { align: 'center' });
+    subtitleLines.forEach((sl, idx) => {
+      doc.font('Helvetica').fontSize(idx === 0 ? 11 : 9).fillColor("#555555")
+        .text(sl, { align: 'center' });
+    });
     doc.moveDown(1);
 
-    // Body content
-    lines.forEach((line) => {
+    // Body content (skipping the header lines already rendered)
+    lines.slice(bodyStart).forEach((line) => {
       if (isSection(line)) {
         doc.moveDown(0.5);
         doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text(line.toUpperCase());
@@ -362,11 +382,9 @@ app.post('/api/generate-pdf', async (req, res) => {
       } else if (isBullet(line)) {
         doc.font('Helvetica').fontSize(10).fillColor(DARK_TEXT)
           .text(`•  ${cleanBullet(line)}`, { indent: 15 });
-      } else if (line.match(/^\d{4}/)) {
+      } else if (line.match(/^\d{4}/) || /\s[—–]\s/.test(line)) {
         doc.moveDown(0.2);
         doc.font('Helvetica-Bold').fontSize(10).fillColor(NAVY).text(line);
-      } else if (line.includes('|') && !isSection(line)) {
-        doc.font('Helvetica-Oblique').fontSize(10).fillColor("#555555").text(line);
       } else {
         doc.font('Helvetica').fontSize(10).fillColor(DARK_TEXT).text(line);
       }
