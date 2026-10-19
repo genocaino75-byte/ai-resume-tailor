@@ -108,7 +108,11 @@ Output PLAIN TEXT only — no Markdown, no ** symbols, no # symbols, no commenta
 - Under PROFESSIONAL EXPERIENCE, begin each role with ONE line formatted "Job Title — Company — City, ST — Start Date to End Date", then list achievements beneath it.
 - Every bullet point MUST begin with "• " (a bullet character followed by a space). Do not put whole bullets in capitals and do not bold them.
 
-Only include skills, certifications, licenses, degrees, clearances, and tools that ALREADY appear in the candidate's resume. Do NOT add, invent, or imply any qualification the candidate does not already have. Never mention, flag, note, or draw attention to anything the candidate is missing, and never comment on gaps between the resume and the job description — if the job asks for something the candidate lacks, simply leave it out entirely. Never replace the candidate's real name or contact information with anyone else's. Adjust only the language, keywords, and emphasis to match the job.
+Write the SUMMARY and every bullet point in normal sentence case — capitalize only the first word and proper nouns. Do NOT write body text, bullets, or job entries in all capital letters; ONLY the section headings (SUMMARY, CORE STRENGTHS, PROFESSIONAL EXPERIENCE, etc.) are in ALL CAPS.
+
+Only include skills, certifications, licenses, degrees, clearances, and tools that ALREADY appear in the candidate's resume. Do NOT add, invent, or imply any qualification the candidate does not already have. Never mention, flag, note, or draw attention to anything the candidate is missing, and never comment on gaps between the resume and the job description — if the job asks for something the candidate lacks, simply leave it out entirely.
+
+Never replace the candidate's real name or contact information with anyone else's. Adjust only the language, keywords, and emphasis to match the job.
 
 Return ONLY the tailored resume text — no notes, no gap analysis, no suggestions.
 
@@ -197,10 +201,16 @@ app.post('/api/generate-docx', async (req, res) => {
   // Parse resume text into sections
   const lines = resumeText.split('\n').map(l => l.trim()).filter(l => l);
 
-  const sectionKeywords = ['SUMMARY', 'EXPERIENCE', 'EDUCATION', 'SKILLS', 'CERTIFICATIONS', 'TECHNOLOGIES', 'COMPETENCIES', 'TRAINING', 'PROJECTS'];
+  const sectionKeywords = ['SUMMARY', 'OBJECTIVE', 'PROFILE', 'EXPERIENCE', 'EDUCATION', 'SKILLS', 'STRENGTHS', 'CERTIFICATIONS', 'LICENSES', 'TECHNOLOGIES', 'COMPETENCIES', 'TRAINING', 'PROJECTS', 'AWARDS', 'ACHIEVEMENTS', 'CLEARANCE', 'AFFILIATIONS', 'HIGHLIGHTS'];
 
+  // A real section heading is a SHORT, standalone, all-caps line (e.g. "SUMMARY",
+  // "CORE STRENGTHS") — NOT a sentence or bullet that merely contains a keyword.
   function isSection(line) {
-    return sectionKeywords.some(k => line.toUpperCase().includes(k));
+    const t = line.trim().replace(/[:\s]+$/, '').toUpperCase();
+    if (t.length === 0 || t.length > 32) return false;
+    if (/^[•\-\*]/.test(t)) return false;
+    if (!/^[A-Z&/ ]+$/.test(t)) return false;
+    return sectionKeywords.some(k => new RegExp(`\\b${k}\\b`).test(t));
   }
 
   function isBullet(line) {
@@ -330,10 +340,16 @@ app.post('/api/generate-pdf', async (req, res) => {
   const DARK_TEXT = "#1A1A1A";
 
   const lines = resumeText.split('\n').map(l => l.trim()).filter(l => l);
-  const sectionKeywords = ['SUMMARY', 'EXPERIENCE', 'EDUCATION', 'SKILLS', 'CERTIFICATIONS', 'TECHNOLOGIES', 'COMPETENCIES', 'TRAINING', 'PROJECTS'];
+  const sectionKeywords = ['SUMMARY', 'OBJECTIVE', 'PROFILE', 'EXPERIENCE', 'EDUCATION', 'SKILLS', 'STRENGTHS', 'CERTIFICATIONS', 'LICENSES', 'TECHNOLOGIES', 'COMPETENCIES', 'TRAINING', 'PROJECTS', 'AWARDS', 'ACHIEVEMENTS', 'CLEARANCE', 'AFFILIATIONS', 'HIGHLIGHTS'];
 
+  // A real section heading is a SHORT, standalone, all-caps line — NOT a sentence
+  // or bullet that merely contains a keyword like "EXPERIENCE" or "TRAINING".
   function isSection(line) {
-    return sectionKeywords.some(k => line.toUpperCase().includes(k));
+    const t = line.trim().replace(/[:\s]+$/, '').toUpperCase();
+    if (t.length === 0 || t.length > 32) return false;
+    if (/^[•\-\*]/.test(t)) return false;
+    if (!/^[A-Z&/ ]+$/.test(t)) return false;
+    return sectionKeywords.some(k => new RegExp(`\\b${k}\\b`).test(t));
   }
   function isBullet(line) {
     return line.startsWith('•') || line.startsWith('-') || line.startsWith('*');
@@ -449,15 +465,53 @@ app.delete("/api/auth/account", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Failed to delete account." });
   }
 });
+// --- Email helpers: block disposable domains and collapse alias tricks ---
+// Known throwaway / temporary email providers (one burner email in seconds).
+const DISPOSABLE_DOMAINS = new Set([
+  "mailinator.com","guerrillamail.com","guerrillamail.info","grr.la","sharklasers.com",
+  "10minutemail.com","10minutemail.net","temp-mail.org","tempmail.com","tempmailo.com",
+  "throwawaymail.com","yopmail.com","getnada.com","nada.email","trashmail.com","maildrop.cc",
+  "dispostable.com","fakeinbox.com","mailnesia.com","mohmal.com","mailcatch.com","emailondeck.com",
+  "mintemail.com","spamgourmet.com","tempinbox.com","tmpmail.org","burnermail.io","moakt.com",
+  "inboxkitten.com","1secmail.com","easytrashmail.com","discard.email","mailtemp.net","tempr.email"
+]);
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+// Returns { email (lowercased as entered), canonical (dedupe key), domain }.
+// Collapses the two cheapest trial-abuse tricks: "+tag" aliases (all providers)
+// and Gmail's ignored dots, so one real inbox can't spawn unlimited accounts.
+function normalizeEmail(raw) {
+  const email = String(raw || "").trim().toLowerCase();
+  const at = email.lastIndexOf("@");
+  if (at < 1) return { email, canonical: email, domain: "" };
+  let local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  local = local.split("+")[0];
+  if (domain === "gmail.com" || domain === "googlemail.com") {
+    local = local.replace(/\./g, "");
+  }
+  return { email, canonical: `${local}@${domain}`, domain };
+}
+
 // SIGN UP - creates a real account
 app.post("/api/auth/signup", async (req, res) => {
-  const { email, password } = req.body;
+  const { password } = req.body;
+  const { email, canonical, domain } = normalizeEmail(req.body.email);
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required." });
   }
+  if (!isValidEmail(canonical)) {
+    return res.status(400).json({ error: "Please enter a valid email address." });
+  }
+  if (DISPOSABLE_DOMAINS.has(domain)) {
+    return res.status(400).json({ error: "Please use a permanent email address — temporary email providers aren't allowed." });
+  }
 
   try {
-    const existing = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+    const existing = await pool.query("SELECT id FROM users WHERE email = $1", [canonical]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: "An account with this email already exists." });
     }
@@ -465,7 +519,7 @@ app.post("/api/auth/signup", async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const result = await pool.query(
       "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email",
-      [email, passwordHash]
+      [canonical, passwordHash]
     );
 
     const user = result.rows[0];
@@ -480,13 +534,14 @@ app.post("/api/auth/signup", async (req, res) => {
 
 // LOG IN - verifies real credentials
 app.post("/api/auth/login", async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
+  const { password } = req.body;
+  const { canonical } = normalizeEmail(req.body.email);
+  if (!canonical || !password) {
     return res.status(400).json({ error: "Email and password are required." });
   }
 
   try {
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [canonical]);
     const user = result.rows[0];
 
     if (!user) {
@@ -507,13 +562,13 @@ app.post("/api/auth/login", async (req, res) => {
 });
 // REQUEST PASSWORD RESET - sends an email with a reset link
 app.post("/api/auth/forgot-password", async (req, res) => {
-  const { email } = req.body;
-  if (!email) {
+  const { canonical } = normalizeEmail(req.body.email);
+  if (!canonical) {
     return res.status(400).json({ error: "Email is required." });
   }
 
   try {
-    const userResult = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+    const userResult = await pool.query("SELECT id FROM users WHERE email = $1", [canonical]);
     const user = userResult.rows[0];
 
     // Always return success, even if the email isn't registered.
