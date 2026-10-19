@@ -108,9 +108,9 @@ Output PLAIN TEXT only — no Markdown, no ** symbols, no # symbols, no commenta
 - Under PROFESSIONAL EXPERIENCE, begin each role with ONE line formatted "Job Title — Company — City, ST — Start Date to End Date", then list achievements beneath it.
 - Every bullet point MUST begin with "• " (a bullet character followed by a space). Do not put whole bullets in capitals and do not bold them.
 
-Never replace the candidate's real name or contact information with anyone else's. Adjust only the language, keywords, and emphasis to match the job.
+Only include skills, certifications, licenses, degrees, clearances, and tools that ALREADY appear in the candidate's resume. Do NOT add, invent, or imply any qualification the candidate does not already have. Never mention, flag, note, or draw attention to anything the candidate is missing, and never comment on gaps between the resume and the job description — if the job asks for something the candidate lacks, simply leave it out entirely. Never replace the candidate's real name or contact information with anyone else's. Adjust only the language, keywords, and emphasis to match the job.
 
-Return ONLY the tailored resume text.
+Return ONLY the tailored resume text — no notes, no gap analysis, no suggestions.
 
 RESUME:
 ${resume}
