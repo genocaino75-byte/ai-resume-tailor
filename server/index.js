@@ -496,6 +496,39 @@ function normalizeEmail(raw) {
   return { email, canonical: `${local}@${domain}`, domain };
 }
 
+const dns = require("dns").promises;
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(Object.assign(new Error("dns-timeout"), { code: "ETIMEOUT" })), ms)
+    ),
+  ]);
+}
+
+// Reject signups whose email DOMAIN has no mail server (fake / typo'd domains).
+// An MX record — or a fallback A/AAAA record (implicit MX) — proves the domain
+// can receive mail. On a transient DNS failure we ALLOW the signup rather than
+// block a real user over a flaky lookup.
+async function domainHasMailServer(domain) {
+  if (!domain) return false;
+  try {
+    const mx = await withTimeout(dns.resolveMx(domain), 4000);
+    if (Array.isArray(mx) && mx.some((r) => r && r.exchange)) return true;
+  } catch (err) {
+    // No MX or a lookup hiccup — fall through to the A/AAAA existence check,
+    // which is the sole decider on whether to reject.
+  }
+  try {
+    const addrs = await withTimeout(dns.resolve(domain), 4000);
+    return Array.isArray(addrs) && addrs.length > 0;
+  } catch (err) {
+    if (err && (err.code === "ENOTFOUND" || err.code === "ENODATA")) return false; // domain truly doesn't resolve
+    return true; // transient / timeout — fail open, never block a real user over a flaky lookup
+  }
+}
+
 // SIGN UP - creates a real account
 app.post("/api/auth/signup", async (req, res) => {
   const { password } = req.body;
@@ -508,6 +541,9 @@ app.post("/api/auth/signup", async (req, res) => {
   }
   if (DISPOSABLE_DOMAINS.has(domain)) {
     return res.status(400).json({ error: "Please use a permanent email address — temporary email providers aren't allowed." });
+  }
+  if (!(await domainHasMailServer(domain))) {
+    return res.status(400).json({ error: "That email domain can't receive mail. Please double-check your email address." });
   }
 
   try {
