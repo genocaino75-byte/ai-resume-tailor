@@ -78,13 +78,22 @@ app.post("/api/tailor", requireAuth, tailorLimiter, async (req, res) => {
   try {
     // Look up this user's entitlement before doing any work
     const userResult = await pool.query(
-      "SELECT free_tailors_used, has_lifetime FROM users WHERE id = $1",
+      "SELECT free_tailors_used, has_lifetime, email_verified FROM users WHERE id = $1",
       [req.userId]
     );
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: "User not found" });
     }
-    const { free_tailors_used, has_lifetime } = userResult.rows[0];
+    const { free_tailors_used, has_lifetime, email_verified } = userResult.rows[0];
+
+    // Require a verified email before any tailoring (keeps throwaway signups out).
+    if (!email_verified) {
+      return res.status(403).json({
+        emailUnverified: true,
+        error: "Please verify your email first — check your inbox (and spam) for the verification link.",
+      });
+    }
+
     const FREE_LIMIT = 2;
     // Trial users who've hit the limit get a paywall signal, not a tailor
     if (!has_lifetime && free_tailors_used >= FREE_LIMIT) {
@@ -529,6 +538,44 @@ async function domainHasMailServer(domain) {
   }
 }
 
+// --- Email verification (prove the inbox is real before the free tailors unlock) ---
+const API_BASE_URL = process.env.API_BASE_URL || "https://ai-resume-tailor-api.onrender.com";
+
+function resultPage(title, message, ok) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title></head>
+<body style="font-family:'Segoe UI',system-ui,sans-serif;background:#F9FAFB;margin:0;padding:48px 20px;color:#1a1a1a;">
+  <div style="max-width:460px;margin:0 auto;background:#fff;border-radius:16px;padding:32px;text-align:center;box-shadow:0 2px 16px rgba(0,0,0,0.06);">
+    <div style="font-size:40px;margin-bottom:8px;">${ok ? "✅" : "⚠️"}</div>
+    <h1 style="color:#3B0764;font-size:22px;margin:0 0 10px;">${title}</h1>
+    <p style="color:#444;font-size:15px;line-height:1.6;margin:0;">${message}</p>
+  </div>
+</body></html>`;
+}
+
+// Creates a fresh verification token and emails the user a one-click link.
+async function sendVerificationEmail(userId, toEmail) {
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+  await pool.query(
+    "INSERT INTO email_verifications (user_id, token, expires_at) VALUES ($1, $2, $3)",
+    [userId, token, expiresAt]
+  );
+  const verifyLink = `${API_BASE_URL}/api/auth/verify-email?token=${token}`;
+  await resend.emails.send({
+    from: "Resume Tailored to JD <noreply@cainbuilds.com>",
+    to: toEmail,
+    subject: "Verify your email for Resume Tailor",
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+        <h2 style="color: #3B0764;">Verify your email</h2>
+        <p style="color: #444;">Welcome to Resume Tailor! Tap the button below to verify your email and unlock your free tailors. This link expires in 24 hours.</p>
+        <a href="${verifyLink}" style="display: inline-block; background: #7C3AED; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; margin: 16px 0;">Verify Email</a>
+        <p style="color: #888; font-size: 13px;">If you didn't create a Resume Tailor account, you can safely ignore this email.</p>
+      </div>
+    `,
+  });
+}
+
 // SIGN UP - creates a real account
 app.post("/api/auth/signup", async (req, res) => {
   const { password } = req.body;
@@ -559,12 +606,60 @@ app.post("/api/auth/signup", async (req, res) => {
     );
 
     const user = result.rows[0];
-    const token = jwt.sign({ userId: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "30d" });
 
-    res.status(201).json({ token, user: { id: user.id, email: user.email } });
+    // Send the verification email (non-fatal if it fails — they can resend from the app).
+    try {
+      await sendVerificationEmail(user.id, canonical);
+    } catch (mailErr) {
+      console.error("Verification email failed to send:", mailErr);
+    }
+
+    const token = jwt.sign({ userId: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "30d" });
+    res.status(201).json({ token, user: { id: user.id, email: user.email, emailVerified: false } });
   } catch (err) {
     console.error("Signup error:", err);
     res.status(500).json({ error: "Failed to create account." });
+  }
+});
+
+// VERIFY EMAIL - one-click link from the verification email (returns an HTML page)
+app.get("/api/auth/verify-email", async (req, res) => {
+  const { token } = req.query;
+  if (!token) {
+    return res.status(400).send(resultPage("Verification failed", "This link is missing its verification token.", false));
+  }
+  try {
+    const r = await pool.query("SELECT * FROM email_verifications WHERE token = $1", [token]);
+    const rec = r.rows[0];
+    if (!rec) {
+      return res.status(400).send(resultPage("Link already used", "This verification link is invalid or has already been used. If you still can't tailor, open the app and tap \"Resend verification.\"", false));
+    }
+    if (new Date(rec.expires_at) < new Date()) {
+      await pool.query("DELETE FROM email_verifications WHERE id = $1", [rec.id]);
+      return res.status(400).send(resultPage("Link expired", "This verification link has expired. Open the app and tap \"Resend verification\" to get a new one.", false));
+    }
+    await pool.query("UPDATE users SET email_verified = TRUE WHERE id = $1", [rec.user_id]);
+    await pool.query("DELETE FROM email_verifications WHERE user_id = $1", [rec.user_id]);
+    return res.send(resultPage("Email verified", "Your email is confirmed. Head back to the Resume Tailor app and start tailoring.", true));
+  } catch (err) {
+    console.error("Verify email error:", err);
+    return res.status(500).send(resultPage("Something went wrong", "Please try the link again in a moment.", false));
+  }
+});
+
+// RESEND VERIFICATION - logged-in user requests a fresh verification email
+app.post("/api/auth/resend-verification", requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query("SELECT email, email_verified FROM users WHERE id = $1", [req.userId]);
+    const u = r.rows[0];
+    if (!u) return res.status(404).json({ error: "User not found." });
+    if (u.email_verified) return res.json({ message: "Your email is already verified." });
+    await pool.query("DELETE FROM email_verifications WHERE user_id = $1", [req.userId]);
+    await sendVerificationEmail(req.userId, u.email);
+    res.json({ message: "Verification email sent. Check your inbox (and spam folder)." });
+  } catch (err) {
+    console.error("Resend verification error:", err);
+    res.status(500).json({ error: "Couldn't send the verification email. Please try again." });
   }
 });
 
@@ -626,7 +721,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
 
     await resend.emails.send({
       from: "Resume Tailored to JD <noreply@cainbuilds.com>",
-      to: email,
+      to: canonical,
       subject: "Reset your Resume Tailor password",
       html: `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
@@ -708,7 +803,7 @@ app.post("/api/auth/google", async (req, res) => {
       // Store a random unusable hash so the column constraint is satisfied.
       const randomHash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
       const insertResult = await pool.query(
-        "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email",
+        "INSERT INTO users (email, password_hash, email_verified) VALUES ($1, $2, TRUE) RETURNING id, email",
         [email, randomHash]
       );
       user = insertResult.rows[0];
